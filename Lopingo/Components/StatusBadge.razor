@@ -1,0 +1,19 @@
+@code {
+    [Parameter, EditorRequired] public string Status { get; set; } = "unknown";
+}
+
+@switch (Status)
+{
+    case "up":
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                 Icon="@Icons.Material.Rounded.CheckCircle" Class="ma-0">up</MudChip>
+        break;
+    case "down":
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                 Icon="@Icons.Material.Rounded.Error" Class="ma-0">down</MudChip>
+        break;
+    default:
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                 Icon="@Icons.Material.Rounded.HelpOutline" Class="ma-0">unknown</MudChip>
+        break;
+}

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Lopingo/Lopingo.csproj" />
+  <Project Path="Lopingo.Tests/Lopingo.Tests.csproj" />
+</Solution>

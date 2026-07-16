@@ -1,0 +1,12 @@
+@page "/logout"
+@attribute [Authorize]
+@inject OwnerCookieService Cookie
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Cookie.SignOutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

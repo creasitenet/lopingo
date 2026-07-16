@@ -1,0 +1,152 @@
+@page "/settings/telegram"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject TelegramRepository TelegramRepo
+@inject ITelegramNotifier TelegramNotifier
+
+<PageTitle>Telegram — Lopingo</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h5">Telegram notifications</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            Bot + chat configs. Link them to monitors to receive down/recovery alerts.
+        </MudText>
+    </div>
+    <MudButton Href="/settings/telegram/new" Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Rounded.Add">
+        Add Telegram
+    </MudButton>
+</MudStack>
+
+@if (!string.IsNullOrEmpty(_ok))
+{
+    <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Dense="true" Class="mb-4">@_ok</MudAlert>
+}
+@if (!string.IsNullOrEmpty(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">@_error</MudAlert>
+}
+
+<MudPaper Elevation="0" Class="rounded-lg pa-0">
+    @if (_telegrams.Count == 0)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="pa-10">
+            <MudIcon Icon="@Icons.Material.Rounded.NotificationsNone" Size="Size.Large" Class="mud-text-secondary mb-2" />
+            <MudText Typo="Typo.body1">No Telegram config yet.</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">Add one, then link it from a monitor.</MudText>
+            <MudButton Href="/settings/telegram/new" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Rounded.Add">
+                Add Telegram
+            </MudButton>
+        </MudStack>
+    }
+    else
+    {
+        <MudTable Items="_telegrams" Hover="true" Dense="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Chat ID</MudTh>
+                <MudTh>Monitors</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="width: 200px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Chat ID"><code>@context.ChatId</code></MudTd>
+                <MudTd DataLabel="Monitors">@context.Monitors.Count</MudTd>
+                <MudTd DataLabel="Status">
+                    @if (context.Enabled)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" Class="ma-0">Enabled</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="ma-0">Disabled</MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                        <MudButton Variant="Variant.Text" Size="Size.Small"
+                                   Disabled="_busyId == context.Id"
+                                   OnClick="@(() => TestAsync(context))">
+                            Test
+                        </MudButton>
+                        <MudButton Href="@($"/settings/telegram/{context.Id}/edit")" Variant="Variant.Text" Size="Size.Small">
+                            Edit
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Error"
+                                   Disabled="_busyId == context.Id"
+                                   OnClick="@(() => DeleteAsync(context.Id))">
+                            Delete
+                        </MudButton>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+<MudButton Href="/settings" Variant="Variant.Text" Class="mt-4" StartIcon="@Icons.Material.Rounded.ArrowBack">
+    Back to settings
+</MudButton>
+
+@code {
+    private List<Telegram> _telegrams = [];
+    private Guid? _busyId;
+    private string? _error;
+    private string? _ok;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _telegrams = await TelegramRepo.ListAsync();
+    }
+
+    private async Task TestAsync(Telegram config)
+    {
+        _error = null;
+        _ok = null;
+        _busyId = config.Id;
+
+        try
+        {
+            await TelegramNotifier.SendAsync(
+                config.BotToken,
+                config.ChatId,
+                $"✅ [Lopingo] Test from \"{config.Name}\" — alerts are working.",
+                CancellationToken.None);
+            _ok = $"Test sent to {config.Name}.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busyId = null;
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _error = null;
+        _ok = null;
+        _busyId = id;
+
+        try
+        {
+            await TelegramRepo.DeleteAsync(id);
+            await ReloadAsync();
+            _ok = "Telegram config deleted.";
+        }
+        finally
+        {
+            _busyId = null;
+        }
+    }
+}

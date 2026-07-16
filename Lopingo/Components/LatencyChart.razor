@@ -1,0 +1,205 @@
+@using System.Globalization
+@using System.Text
+
+@*
+  Pure Blazor chart — no JS.
+  X axis = selected Range (window), not the span of available data.
+  Hover = HTML hit strips above the SVG (SVG has pointer-events: none).
+*@
+@if (_points.Count > 1)
+{
+    <div class="lopingo-chart-wrap">
+        <div class="lopingo-chart-axis lopingo-chart-axis--y">
+            <span>@_maxLabel</span>
+            <span>@_midLabel</span>
+            <span>0</span>
+        </div>
+        <div class="lopingo-chart-body">
+            <div class="lopingo-chart-plot" @onmouseleave="ClearTip">
+                <svg class="lopingo-chart" viewBox="0 0 100 40" preserveAspectRatio="none"
+                     role="img" aria-label="Latency over time">
+                    <line class="lopingo-chart__grid" x1="0" y1="2"  x2="100" y2="2"  vector-effect="non-scaling-stroke" />
+                    <line class="lopingo-chart__grid" x1="0" y1="20" x2="100" y2="20" vector-effect="non-scaling-stroke" />
+                    <line class="lopingo-chart__grid" x1="0" y1="38" x2="100" y2="38" vector-effect="non-scaling-stroke" />
+                    <path class="lopingo-chart__area" d="@_areaPath" />
+                    <path class="lopingo-chart__line" d="@_linePath" vector-effect="non-scaling-stroke" />
+                </svg>
+
+                <div class="lopingo-chart-hits">
+                    @for (var i = 0; i < _points.Count; i++)
+                    {
+                        var p = _points[i];
+                        var prevX = i == 0 ? p.X : _points[i - 1].X;
+                        var nextX = i == _points.Count - 1 ? p.X : _points[i + 1].X;
+                        var left = (prevX + p.X) / 2;
+                        var right = (p.X + nextX) / 2;
+                        // Mirror tip on ends so empty left (long Range, short history) stays dead.
+                        if (i == 0) left = Math.Max(0, p.X - (right - p.X));
+                        if (i == _points.Count - 1) right = Math.Min(100, p.X + (p.X - left));
+                        var w = Math.Max(0.4, right - left);
+                        <div class="lopingo-chart-hit"
+                             style="left:@Pct(left); width:@Pct(w)"
+                             @onmouseenter="@(() => SetActive(p))"></div>
+                    }
+                </div>
+
+                @if (_active is not null)
+                {
+                    <span class="lopingo-chart-dot"
+                          style="left:@Pct(_active.X); top:@Pct(_active.YPct)"></span>
+                    <div class="lopingo-chart-tip" style="left:@Pct(Math.Clamp(_active.X, 14, 86))">
+                        <strong>@_active.MsLabel</strong>
+                        <span>@_active.TimeLabel</span>
+                    </div>
+                }
+            </div>
+            <div class="lopingo-chart-axis lopingo-chart-axis--x">
+                <span>@_startLabel</span>
+                <span>@_midTimeLabel</span>
+                <span>now</span>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="lopingo-uptime--empty d-flex align-center justify-center">
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">Not enough data to plot latency yet.</MudText>
+    </div>
+}
+
+@code {
+    private const int MaxPoints = 120;
+    private const double ChartH = 40;
+    private const double PadTop = 2;
+    private const double PadBottom = 2;
+
+    [Parameter, EditorRequired] public List<Check>? Checks { get; set; }
+
+    /// <summary>Selected window (Recent=2h, 24h, 1w…). Always drives the X axis.</summary>
+    [Parameter] public TimeSpan Range { get; set; } = TimeSpan.FromHours(2);
+
+    private List<Pt> _points = new();
+    private string _linePath = "";
+    private string _areaPath = "";
+    private string _maxLabel = "";
+    private string _midLabel = "";
+    private string _startLabel = "";
+    private string _midTimeLabel = "";
+    private Pt? _active;
+    private TimeSpan _builtRange;
+    private int _builtCount;
+    private long _builtLastId;
+
+    private sealed record Pt(double X, double YPct, string MsLabel, string TimeLabel);
+
+    protected override void OnParametersSet()
+    {
+        var range = Range <= TimeSpan.Zero ? TimeSpan.FromHours(2) : Range;
+        var list = Checks ?? [];
+        var lastId = list.Count > 0 ? list[^1].Id : 0L;
+
+        // Rebuild when Range or series changes. Keeps hover tip across useless re-renders.
+        if (range == _builtRange && list.Count == _builtCount && lastId == _builtLastId && _points.Count > 1)
+            return;
+
+        Rebuild(range, list);
+        _builtRange = range;
+        _builtCount = list.Count;
+        _builtLastId = lastId;
+    }
+
+    private void Rebuild(TimeSpan range, List<Check> checks)
+    {
+        _points = new();
+        _linePath = "";
+        _areaPath = "";
+        _active = null;
+
+        var end = DateTime.UtcNow;
+        var start = end - range;
+
+        var source = checks
+            .Where(c => c.IsUp && c.ResponseMs is > 0)
+            .Where(c => AsUtc(c.CheckedAt) >= start)
+            .OrderBy(c => c.CheckedAt)
+            .ToList();
+
+        if (source.Count < 2) return;
+
+        var plotted = Downsample(source, MaxPoints);
+        var max = Math.Max(1, plotted.Max(c => c.ResponseMs ?? 0));
+        var spanSec = Math.Max(1.0, range.TotalSeconds);
+        var drawH = ChartH - PadTop - PadBottom;
+
+        _maxLabel = FormatMs(max);
+        _midLabel = FormatMs(max / 2);
+        _startLabel = FormatTime(start);
+        _midTimeLabel = FormatTime(start + range / 2);
+
+        foreach (var c in plotted)
+        {
+            var at = AsUtc(c.CheckedAt);
+            var x = Math.Clamp((at - start).TotalSeconds / spanSec * 100.0, 0, 100);
+            var ySvg = ChartH - PadBottom - ((c.ResponseMs ?? 0) * 1.0 / max) * drawH;
+            var yPct = ySvg / ChartH * 100.0;
+            _points.Add(new Pt(x, yPct, FormatMs(c.ResponseMs ?? 0), FormatTime(at)));
+        }
+
+        _linePath = BuildLinePath(_points);
+        _areaPath = BuildAreaPath(_points);
+    }
+
+    private void SetActive(Pt p)
+    {
+        if (_active == p) return;
+        _active = p;
+    }
+
+    private void ClearTip() => _active = null;
+
+    private static DateTime AsUtc(DateTime dt) =>
+        dt.Kind switch
+        {
+            DateTimeKind.Utc => dt,
+            DateTimeKind.Local => dt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dt, DateTimeKind.Utc),
+        };
+
+    private static List<Check> Downsample(List<Check> source, int max)
+    {
+        if (source.Count <= max) return source;
+        var result = new List<Check>(max);
+        var step = (source.Count - 1) / (double)(max - 1);
+        for (var i = 0; i < max; i++)
+            result.Add(source[(int)Math.Round(i * step)]);
+        return result;
+    }
+
+    private static string BuildLinePath(List<Pt> pts)
+    {
+        static double SvgY(Pt p) => p.YPct / 100.0 * ChartH;
+        var sb = new StringBuilder($"M {F(pts[0].X)} {F(SvgY(pts[0]))}");
+        for (var i = 1; i < pts.Count; i++)
+            sb.Append($" L {F(pts[i].X)} {F(SvgY(pts[i]))}");
+        return sb.ToString();
+    }
+
+    private static string BuildAreaPath(List<Pt> pts)
+    {
+        var line = BuildLinePath(pts);
+        return $"{line} L {F(pts[^1].X)} {ChartH} L {F(pts[0].X)} {ChartH} Z";
+    }
+
+    private static string F(double d) => d.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string Pct(double d) => d.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    private static string FormatMs(int ms) => ms >= 1000 ? $"{ms / 1000.0:0.#}s" : $"{ms} ms";
+
+    private static string FormatTime(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return local.Date == DateTime.Now.Date
+            ? local.ToString("HH:mm")
+            : local.ToString("MMM d HH:mm");
+    }
+}

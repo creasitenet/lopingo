@@ -1,0 +1,117 @@
+@page "/login"
+@inject OwnerAuthService AuthService
+@inject OwnerCookieService Cookie
+@inject LoginThrottle Throttle
+@inject NavigationManager Nav
+
+<PageTitle>Sign in — Lopingo</PageTitle>
+
+@if (_setupRequired)
+{
+    <div class="lopingo-auth-shell">
+        <MudPaper Elevation="0" Class="pa-8 rounded-lg" Style="width:100%; max-width: 460px;">
+            <MudStack Spacing="1" Class="mb-4" AlignItems="AlignItems.Center">
+                <img src="img/mascot.svg" alt="" class="lopingo-mascot mb-2" width="72" height="72" />
+                <MudText Typo="Typo.h4">Welcome to Lopingo</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary" Style="text-align:center">
+                    No owner has been created yet. Pick a username and password on the next page to claim this instance.
+                </MudText>
+            </MudStack>
+            <MudButton Href="/signup" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true">
+                Create owner account
+            </MudButton>
+        </MudPaper>
+    </div>
+}
+else
+{
+    <div class="lopingo-auth-shell">
+        <MudPaper Elevation="0" Class="pa-8 rounded-lg" Style="width:100%; max-width: 420px;">
+            <MudStack Spacing="1" Class="mb-6" AlignItems="AlignItems.Center">
+                <img src="img/mascot.svg" alt="" class="lopingo-mascot mb-1" width="56" height="56" />
+                <MudText Typo="Typo.h4">Sign in</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Welcome back.</MudText>
+            </MudStack>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4" Dense="true">@_error</MudAlert>
+            }
+
+            <EditForm Model="Input" FormName="login" OnValidSubmit="SignInAsync" method="post" Enhance="false">
+                <DataAnnotationsValidator />
+                <MudStack Spacing="3">
+                    <div class="lopingo-field">
+                        <label class="lopingo-field__label" for="login-username">Username</label>
+                        <InputText id="login-username" @bind-Value="Input.Username" class="lopingo-field__input" autocomplete="username" />
+                        <ValidationMessage For="@(() => Input.Username)" class="lopingo-field__error" />
+                    </div>
+                    <div class="lopingo-field">
+                        <label class="lopingo-field__label" for="login-password">Password</label>
+                        <InputText type="password" id="login-password" @bind-Value="Input.Password" class="lopingo-field__input" autocomplete="current-password" />
+                        <ValidationMessage For="@(() => Input.Password)" class="lopingo-field__error" />
+                    </div>
+                    <label class="lopingo-field lopingo-field--checkbox">
+                        <InputCheckbox @bind-Value="Input.Remember" />
+                        <span>Remember me</span>
+                    </label>
+                    <input type="hidden" name="ReturnUrl" value="@_returnUrl" />
+
+                    <button type="submit" class="lopingo-btn lopingo-btn--primary lopingo-btn--block mt-2">
+                        Sign in
+                    </button>
+                </MudStack>
+            </EditForm>
+        </MudPaper>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromForm(FormName = "login")]
+    public LoginFormModel Input { get; set; } = null!;
+
+    [Parameter, SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private bool _setupRequired = true;
+    private string? _error;
+    private string? _returnUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        _setupRequired = !await AuthService.OwnerExistsAsync();
+        _returnUrl = !string.IsNullOrEmpty(Input.ReturnUrl) ? Input.ReturnUrl : ReturnUrl;
+    }
+
+    private async Task SignInAsync()
+    {
+        _error = null;
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+        if (Throttle.IsBlocked(ip))
+        {
+            _error = "Too many failed attempts. Try again in a few minutes.";
+            return;
+        }
+
+        var owner = await AuthService.VerifyAsync(Input.Username, Input.Password);
+        if (owner is null)
+        {
+            Throttle.RecordFailure(ip);
+            _error = "Invalid username or password.";
+            return;
+        }
+
+        Throttle.Reset(ip);
+        await Cookie.SignInAsync(HttpContext, owner.Username, owner.Id, Input.Remember);
+
+        var target = _returnUrl;
+        if (string.IsNullOrEmpty(target) || !Uri.IsWellFormedUriString(target, UriKind.Relative))
+            target = "/";
+        Nav.NavigateTo(target, forceLoad: true);
+    }
+}

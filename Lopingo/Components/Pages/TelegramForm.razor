@@ -1,0 +1,117 @@
+@page "/settings/telegram/new"
+@page "/settings/telegram/{Id:guid}/edit"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject TelegramRepository Telegrams
+@inject NavigationManager Nav
+
+<PageTitle>@(_isEdit ? "Edit" : "New") Telegram — Lopingo</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-1">@(_isEdit ? "Edit Telegram" : "New Telegram")</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+    Create a bot via <MudLink Href="https://t.me/BotFather" Target="_blank">BotFather</MudLink>,
+    then paste the token and your chat ID. Link this config to monitors from their edit page.
+</MudText>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">@_error</MudAlert>
+}
+
+<MudPaper Elevation="0" Class="pa-6 rounded-lg" Style="max-width: 540px;">
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_model.Name" For="@(() => _model.Name)" Label="Name"
+                          HelperText="A label (e.g. Personal, Ops channel)."
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+            <MudTextField @bind-Value="_model.BotToken" For="@(() => _model.BotToken)" Label="Bot token"
+                          InputType="InputType.Password" autocomplete="off"
+                          Placeholder="@(_isEdit ? "••••••••  (leave blank to keep current)" : "123456:ABC-DEF…")"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+            <MudTextField @bind-Value="_model.ChatId" For="@(() => _model.ChatId)" Label="Chat ID"
+                          HelperText="User, group, or channel ID (e.g. -1001234567890)."
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+            <MudCheckBox @bind-Value="_model.Enabled" Label="Enabled" />
+
+            <MudStack Row="true" Spacing="2" Class="mt-2">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitting">
+                    @(_isEdit ? "Save changes" : "Create")
+                </MudButton>
+                <MudButton Href="/settings/telegram" Variant="Variant.Text">Cancel</MudButton>
+            </MudStack>
+        </MudStack>
+    </EditForm>
+</MudPaper>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private readonly TelegramFormModel _model = new();
+    private bool _isEdit;
+    private bool _submitting;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is null) return;
+
+        _isEdit = true;
+        var telegram = await Telegrams.GetAsync(Id.Value);
+        if (telegram is null)
+        {
+            Nav.NavigateTo("/settings/telegram", forceLoad: true);
+            return;
+        }
+
+        _model.Name = telegram.Name;
+        _model.ChatId = telegram.ChatId;
+        _model.Enabled = telegram.Enabled;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _submitting = true;
+
+        try
+        {
+            if (!_isEdit && string.IsNullOrWhiteSpace(_model.BotToken))
+            {
+                _error = "Bot token is required.";
+                return;
+            }
+
+            if (_isEdit)
+            {
+                if (!await Telegrams.UpdateAsync(
+                        Id!.Value,
+                        _model.Name,
+                        string.IsNullOrWhiteSpace(_model.BotToken) ? null : _model.BotToken,
+                        _model.ChatId,
+                        _model.Enabled))
+                {
+                    _error = "Telegram config not found.";
+                    return;
+                }
+            }
+            else
+            {
+                await Telegrams.CreateAsync(_model.Name, _model.BotToken!, _model.ChatId, _model.Enabled);
+            }
+
+            Nav.NavigateTo("/settings/telegram", forceLoad: true);
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

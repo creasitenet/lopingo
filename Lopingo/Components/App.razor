@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <base href="/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/site.css" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <title>Lopingo</title>
+    <script>
+        (function () {
+            var m = document.cookie.match(/lopingo\.theme=([^;]+)/);
+            if (!m || m[1] !== 'light') {
+                document.documentElement.setAttribute('data-mud-color-scheme', 'dark');
+            }
+
+            document.addEventListener('click', function (e) {
+                var t = e.target.closest('[data-lopingo-theme-toggle]');
+                if (!t) return;
+                var m = document.cookie.match(/lopingo\.theme=([^;]+)/);
+                var current = (m && m[1] === 'light') ? 'light' : 'dark';
+                var next = current === 'dark' ? 'light' : 'dark';
+                document.cookie = 'lopingo.theme=' + next + ';max-age=31536000;path=/;samesite=lax';
+                location.reload();
+            }, true);
+
+            // Sidebar: toggle MudBlazor mini drawer open/closed classes (layout is static SSR).
+            document.addEventListener('click', function (e) {
+                var t = e.target.closest('[data-lopingo-nav-toggle]');
+                if (!t) return;
+                e.preventDefault();
+                var drawer = document.querySelector('.lopingo-drawer.mud-drawer');
+                if (!drawer) return;
+                var collapsed = drawer.classList.toggle('mud-drawer--closed');
+                drawer.classList.toggle('mud-drawer--open', !collapsed);
+                document.documentElement.classList.toggle('lopingo-nav-collapsed', collapsed);
+            }, true);
+        })();
+    </script>
+</head>
+<body>
+    <Routes />
+
+    <div id="components-reconnect-modal">
+        <div class="lopingo-reconnect">
+            <div class="lopingo-reconnect__panel lopingo-reconnect__show">
+                <div class="lopingo-reconnect__spinner" aria-hidden="true"></div>
+                <p class="lopingo-reconnect__title">Reconnecting…</p>
+                <p class="lopingo-reconnect__detail">
+                    Attempt
+                    <span id="components-reconnect-current-attempt"></span>
+                    /
+                    <span id="components-reconnect-max-retries"></span>
+                </p>
+            </div>
+            <div class="lopingo-reconnect__panel lopingo-reconnect__failed">
+                <p class="lopingo-reconnect__title">Connection lost</p>
+                <p class="lopingo-reconnect__detail">Couldn’t reach the server. Check your network, then try again.</p>
+                <button type="button" class="lopingo-btn lopingo-btn--primary"
+                        onclick="window.Blazor &amp;&amp; Blazor.reconnect &amp;&amp; Blazor.reconnect()">
+                    Retry
+                </button>
+            </div>
+            <div class="lopingo-reconnect__panel lopingo-reconnect__rejected">
+                <p class="lopingo-reconnect__title">Session expired</p>
+                <p class="lopingo-reconnect__detail">Reload the page to continue.</p>
+                <button type="button" class="lopingo-btn lopingo-btn--primary"
+                        onclick="location.reload()">
+                    Reload
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+</html>

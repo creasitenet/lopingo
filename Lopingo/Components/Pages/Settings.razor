@@ -1,0 +1,137 @@
+@page "/settings"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject OwnerAuthService AuthService
+
+<PageTitle>Settings — Lopingo</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Settings</MudText>
+
+<MudPaper Elevation="0" Class="pa-6 rounded-lg" Style="max-width: 720px;">
+    <MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="false">
+        <MudTabPanel Text="About" Icon="@Icons.Material.Rounded.Info">
+            <div class="pa-4">
+                <MudStack Spacing="3">
+                    <div>
+                        <MudText Typo="Typo.overline" Class="mud-text-secondary">Timezone</MudText>
+                        <MudText>@TimeZoneInfo.Local.DisplayName</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            Timestamps are stored in UTC and displayed in your local timezone.
+                        </MudText>
+                    </div>
+
+                    <MudDivider />
+
+                    <div>
+                        <MudText Typo="Typo.overline" Class="mud-text-secondary">Check intervals</MudText>
+                        <MudText>1 min, 5 min, 15 min, 30 min, 1 h — per monitor</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            The worker tick is global (default 5 s); each monitor's probe interval is set at creation.
+                            Changing the global tick requires a container restart.
+                        </MudText>
+                    </div>
+
+                    <MudDivider />
+
+                    <div>
+                        <MudText Typo="Typo.overline" Class="mud-text-secondary">Check retention</MudText>
+                        <MudText>30 days (configurable)</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            Raw check rows older than <code>LOPINGO_CHECK_RETENTION_DAYS</code> are deleted at startup and once a day.
+                        </MudText>
+                    </div>
+
+                    <MudDivider />
+
+                    <div>
+                        <MudText Typo="Typo.overline" Class="mud-text-secondary">About Lopingo</MudText>
+                        <MudText>Self-hosted, single-user uptime monitor. MIT licensed.</MudText>
+                    </div>
+                </MudStack>
+            </div>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Telegram" Icon="@Icons.Material.Rounded.Notifications">
+            <div class="pa-4">
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+                    Configure Telegram bots, then link them to monitors for down/recovery alerts.
+                </MudText>
+                <MudButton Href="/settings/telegram" Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Rounded.Notifications">
+                    Manage Telegram
+                </MudButton>
+            </div>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Account" Icon="@Icons.Material.Rounded.Person">
+            <div class="pa-4">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Password</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">Change the owner password.</MudText>
+
+                @if (!string.IsNullOrEmpty(_ok))
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Dense="true" Class="mb-4">@_ok</MudAlert>
+                }
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">@_error</MudAlert>
+                }
+
+                <EditForm Model="_model" OnValidSubmit="ChangePasswordAsync">
+                    <DataAnnotationsValidator />
+                    <MudStack Spacing="3" Style="max-width: 420px;">
+                        <MudTextField @bind-Value="_model.CurrentPassword" For="@(() => _model.CurrentPassword)"
+                                      Label="Current password" InputType="InputType.Password"
+                                      autocomplete="current-password"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+                        <MudTextField @bind-Value="_model.NewPassword" For="@(() => _model.NewPassword)"
+                                      Label="New password" InputType="InputType.Password"
+                                      autocomplete="new-password"
+                                      HelperText="At least 6 characters."
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                                   Class="align-self-start" Disabled="_submitting">
+                            Save password
+                        </MudButton>
+                    </MudStack>
+                </EditForm>
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+</MudPaper>
+
+@code {
+    private readonly PasswordChangeFormModel _model = new();
+    private bool _submitting;
+    private string? _error;
+    private string? _ok;
+
+    private async Task ChangePasswordAsync()
+    {
+        _error = null;
+        _ok = null;
+        _submitting = true;
+
+        try
+        {
+            await AuthService.ChangePasswordAsync(_model.CurrentPassword, _model.NewPassword);
+            _model.CurrentPassword = "";
+            _model.NewPassword = "";
+            _ok = "Password updated.";
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _error = "Current password is incorrect.";
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

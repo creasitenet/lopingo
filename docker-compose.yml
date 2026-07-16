@@ -1,0 +1,22 @@
+services:
+  lopingo:
+    build: .
+    image: lopingo:latest
+    container_name: lopingo
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - LOPINGO_DB_PATH=${LOPINGO_DB_PATH:-/data/lopingo.db}
+      - LOPINGO_TICK_SECONDS=${LOPINGO_TICK_SECONDS:-5}
+      - LOPINGO_MAX_PARALLEL=${LOPINGO_MAX_PARALLEL:-10}
+      - LOPINGO_BATCH=${LOPINGO_BATCH:-100}
+      - LOPINGO_CHECK_RETENTION_DAYS=${LOPINGO_CHECK_RETENTION_DAYS:-30}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

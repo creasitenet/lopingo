@@ -1,0 +1,381 @@
+@page "/monitors/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject MonitorRepository Monitors
+@inject CheckRepository Checks
+@inject IncidentRepository Incidents
+@inject NavigationManager Nav
+@inject MonitorEventsBus Bus
+@implements IAsyncDisposable
+
+<PageTitle>@(_monitor?.Url ?? "Monitor") — Lopingo</PageTitle>
+
+@if (_monitor is null)
+{
+    <MudPaper Elevation="0" Class="pa-6 rounded-lg d-flex justify-center">
+        <MudProgressCircular Indeterminate="true" />
+    </MudPaper>
+}
+else
+{
+    var ok24h = HasEnoughCoverage(_stats24h, Min24h);
+    var ok30d = HasEnoughCoverage(_stats30d, Min30d);
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+        <MudIconButton Href="/" Icon="@Icons.Material.Rounded.ArrowBack" />
+        <MudText Typo="Typo.h5">@_monitor.Url</MudText>
+        <StatusBadge Status="@_monitor.Status" />
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" Class="lopingo-live-chip">
+            <span class="lopingo-live-dot"></span> Live
+        </MudChip>
+        <MudSpacer />
+        <MudIconButton Href="@($"/monitors/{_monitor.Id}/edit")"
+                       Icon="@Icons.Material.Rounded.Edit"
+                       Size="Size.Small"
+                       Color="Color.Default"
+                       title="Edit" />
+        <MudIconButton OnClick="@(() => _confirmDelete = true)"
+                       Icon="@Icons.Material.Rounded.Delete"
+                       Size="Size.Small"
+                       Color="Color.Default"
+                       Disabled="_deleting"
+                       title="Delete" />
+    </MudStack>
+
+    @if (_openIncident is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">
+            Ongoing incident since @LopingoFormat.LocalTime(_openIncident.StartedAt).
+            @if (!string.IsNullOrEmpty(_openIncident.FirstError))
+            {
+                <code class="ml-1">@_openIncident.FirstError</code>
+            }
+        </MudAlert>
+    }
+
+    <div class="lopingo-stat-grid mb-4">
+        <div class="lopingo-stat-card">
+            <span class="lopingo-stat-card__label">Response time</span>
+            <span class="lopingo-stat-card__value">@LopingoFormat.Ms(_monitor.LastResponseMs)</span>
+            <span class="lopingo-stat-card__hint">Current</span>
+        </div>
+        <div class="lopingo-stat-card @(ok24h ? "" : "lopingo-stat-card--dim")">
+            <span class="lopingo-stat-card__label">Avg response</span>
+            <span class="lopingo-stat-card__value">@(ok24h ? LopingoFormat.AvgMs(_stats24h?.AvgResponseMs) : "N/A")</span>
+            <span class="lopingo-stat-card__hint">@Hint24h(ok24h)</span>
+        </div>
+        <div class="lopingo-stat-card @(ok30d ? "" : "lopingo-stat-card--dim")">
+            <span class="lopingo-stat-card__label">Avg response</span>
+            <span class="lopingo-stat-card__value">@(ok30d ? LopingoFormat.AvgMs(_stats30d?.AvgResponseMs) : "N/A")</span>
+            <span class="lopingo-stat-card__hint">@Hint30d(ok30d)</span>
+        </div>
+        <div class="lopingo-stat-card @(ok24h ? "" : "lopingo-stat-card--dim")">
+            <span class="lopingo-stat-card__label">Uptime</span>
+            <span class="lopingo-stat-card__value @UptimeClass(_stats24h?.UptimePercent)">@(ok24h ? LopingoFormat.Uptime(_stats24h?.UptimePercent) : "N/A")</span>
+            <span class="lopingo-stat-card__hint">@Hint24h(ok24h)</span>
+        </div>
+        <div class="lopingo-stat-card @(ok30d ? "" : "lopingo-stat-card--dim")">
+            <span class="lopingo-stat-card__label">Uptime</span>
+            <span class="lopingo-stat-card__value @UptimeClass(_stats30d?.UptimePercent)">@(ok30d ? LopingoFormat.Uptime(_stats30d?.UptimePercent) : "N/A")</span>
+            <span class="lopingo-stat-card__hint">@Hint30d(ok30d)</span>
+        </div>
+    </div>
+
+    <MudPaper Elevation="0" Class="pa-4 rounded-lg mb-4">
+        <MudGrid Spacing="3">
+            <MudItem xs="6" md="3">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Frequency</MudText>
+                    <MudText>@LopingoFormat.Freq(_monitor.FreqSec)</MudText>
+                </MudStack>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Last checked</MudText>
+                    <MudText>@LopingoFormat.LocalTime(_monitor.LastCheckedAt)</MudText>
+                </MudStack>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Last status</MudText>
+                    <MudText>@(_monitor.LastStatusCode?.ToString() ?? "—")</MudText>
+                </MudStack>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.overline" Class="mud-text-secondary">Next check</MudText>
+                    <MudText>@LopingoFormat.LocalTime(_monitor.NextRunAt)</MudText>
+                </MudStack>
+            </MudItem>
+            @if (!string.IsNullOrEmpty(_monitor.LastError))
+            {
+                <MudItem xs="12">
+                    <MudStack Spacing="0">
+                        <MudText Typo="Typo.overline" Class="mud-text-secondary">Last error</MudText>
+                        <MudText Style="word-break: break-all;"><code>@_monitor.LastError</code></MudText>
+                    </MudStack>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudPaper>
+
+    @if (_chartChecks.Count > 0 || _horizonHours > 0)
+    {
+        <MudPaper Elevation="0" Class="pa-4 rounded-lg mb-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="1">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Latency &amp; heartbeat</MudText>
+                <MudSpacer />
+                <div class="lopingo-range">
+                    @foreach (var (hours, label) in Horizons)
+                    {
+                        var h = hours;
+                        <button type="button"
+                                class="lopingo-range__btn@(_horizonHours == h ? " lopingo-range__btn--active" : "")"
+                                @onclick="@(() => SetHorizonAsync(h))">
+                            @label
+                        </button>
+                    }
+                </div>
+            </MudStack>
+
+            @if (_chartChecks.Count > 0)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2 d-block">Latency</MudText>
+                <LatencyChart @key="_horizonHours"
+                              Checks="@_chartChecks"
+                              Range="@TimeSpan.FromHours(_horizonHours)" />
+
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2 mt-4 d-block">Heartbeat</MudText>
+                <UptimeBar Checks="@_chartChecks" Slots="@Math.Min(Math.Max(_chartChecks.Count, 1), 60)" />
+            }
+            else
+            {
+                <MudText Class="mud-text-secondary">No checks in this time range yet.</MudText>
+            }
+        </MudPaper>
+    }
+
+    @if (_incidents.Count > 0)
+    {
+        <MudPaper Elevation="0" Class="pa-4 rounded-lg mb-4">
+            <MudText Typo="Typo.subtitle2" Class="mb-3">Incidents</MudText>
+            <MudTable Items="@_incidents" Hover="true" Dense="true" Elevation="0" Class="mud-table-dense">
+                <HeaderContent>
+                    <MudTh>Opened</MudTh>
+                    <MudTh>Closed</MudTh>
+                    <MudTh>Duration</MudTh>
+                    <MudTh>First error</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@LopingoFormat.LocalTime(context.StartedAt)</MudTd>
+                    <MudTd>@(context.EndedAt is null ? "open" : LopingoFormat.LocalTime(context.EndedAt))</MudTd>
+                    <MudTd>@(context.DurationSec is null ? "—" : TimeSpan.FromSeconds(context.DurationSec.Value).ToString())</MudTd>
+                    <MudTd><code>@(context.FirstError ?? "—")</code></MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    }
+
+    <MudPaper Elevation="0" Class="pa-4 rounded-lg">
+        <MudText Typo="Typo.subtitle2" Class="mb-3">Recent checks</MudText>
+        @if (_tableChecks.Count == 0)
+        {
+            <MudText Class="mud-text-secondary">No checks yet — the worker will probe this URL within the next tick.</MudText>
+        }
+        else
+        {
+            <MudTable Items="@_tableChecks" Hover="true" Dense="true" Elevation="0" Class="mud-table-dense">
+                <HeaderContent>
+                    <MudTh>Time</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Response time</MudTh>
+                    <MudTh>Error</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@LopingoFormat.LocalTime(context.CheckedAt)</MudTd>
+                    <MudTd>
+                        @if (context.IsUp)
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                     Icon="@Icons.Material.Rounded.CheckCircle" Class="ma-0">up</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Error"
+                                     Icon="@Icons.Material.Rounded.Error" Class="ma-0">down</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd>@LopingoFormat.Ms(context.ResponseMs)</MudTd>
+                    <MudTd><code>@(context.Error ?? "—")</code></MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+
+    <MudOverlay Visible="_confirmDelete" DarkBackground="true" ZIndex="2000"
+                OnClick="@(() => { if (!_deleting) _confirmDelete = false; })">
+        <MudPaper Class="pa-5 rounded-lg lopingo-confirm" Elevation="8" @onclick:stopPropagation="true">
+            <MudText Typo="Typo.h6" Class="mb-2">Delete this monitor?</MudText>
+            <MudText Class="mb-4 mud-text-secondary">
+                This will permanently delete the monitor, all its checks, and all its incidents.
+            </MudText>
+            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                <MudButton Variant="Variant.Text"
+                           Disabled="_deleting"
+                           OnClick="@(() => _confirmDelete = false)">
+                    Cancel
+                </MudButton>
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Filled"
+                           Disabled="_deleting"
+                           OnClick="DeleteAsync">
+                    @(_deleting ? "Deleting…" : "Delete")
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@code {
+    private const int TableCheckLimit = 15;
+    private const int IncidentLimit = 10;
+    private const int DefaultHorizonHours = 2; // "Recent"
+
+    private static readonly (int Hours, string Label)[] Horizons =
+    {
+        (2, "Recent"),
+        (3, "3h"),
+        (6, "6h"),
+        (12, "12h"),
+        (24, "24h"),
+        (168, "1w"),
+    };
+
+    // Minimum amount of data we trust before showing a window stat.
+    private static readonly TimeSpan Min24h = TimeSpan.FromHours(1);
+    private static readonly TimeSpan Min30d = TimeSpan.FromDays(7);
+
+    [Parameter] public Guid Id { get; set; }
+
+    private Monitor? _monitor;
+    private List<Check> _chartChecks = new();
+    private List<Check> _tableChecks = new();
+    private List<Incident> _incidents = new();
+    private Incident? _openIncident;
+    private MonitorPeriodStats? _stats24h;
+    private MonitorPeriodStats? _stats30d;
+    private int _horizonHours = DefaultHorizonHours;
+    private bool _confirmDelete;
+    private bool _deleting;
+
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        _ = ListenAsync(_cts.Token);
+    }
+
+    private async Task SetHorizonAsync(int hours)
+    {
+        if (_horizonHours == hours) return;
+        _horizonHours = hours;
+        await LoadChartAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync()
+    {
+        _monitor = await Monitors.GetAsync(Id);
+        if (_monitor is null)
+        {
+            Nav.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        await LoadChartAsync();
+
+        _tableChecks = (await Checks.GetRecentAsync(Id, 80))
+            .Where(c => c.IsUp || c.Attempt == CheckProcessor.MaxAttempts)
+            .Take(TableCheckLimit)
+            .ToList();
+
+        _incidents = await Incidents.ListByMonitorAsync(Id, IncidentLimit);
+        _openIncident = _incidents.FirstOrDefault(i => i.EndedAt is null);
+        _stats24h = await Checks.GetPeriodStatsAsync(Id, TimeSpan.FromHours(24));
+        _stats30d = await Checks.GetPeriodStatsAsync(Id, TimeSpan.FromDays(30));
+    }
+
+    private async Task LoadChartAsync()
+    {
+        // SQLite DateTimes come back Unspecified — compare against Unspecified UTC ticks.
+        var since = DateTime.SpecifyKind(DateTime.UtcNow.AddHours(-_horizonHours), DateTimeKind.Unspecified);
+        _chartChecks = await Checks.GetSinceAsync(Id, since);
+    }
+
+    private async Task ListenAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var monitorId in Bus.CheckedReader.ReadAllAsync(ct))
+            {
+                if (monitorId != Id) continue;
+
+                await InvokeAsync(async () =>
+                {
+                    await LoadAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task DeleteAsync()
+    {
+        _deleting = true;
+        try
+        {
+            await Monitors.DeleteAsync(Id);
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+        finally
+        {
+            _deleting = false;
+            _confirmDelete = false;
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string UptimeClass(double? pct) => pct switch
+    {
+        >= 99 => "lopingo-stat-card__value--good",
+        >= 95 => "lopingo-stat-card__value--warn",
+        not null => "lopingo-stat-card__value--bad",
+        _ => "",
+    };
+
+    private static bool HasEnoughCoverage(MonitorPeriodStats? stats, TimeSpan minCoverage)
+    {
+        if (stats?.OldestCheckedAt is not DateTime oldest) return false;
+        var covered = DateTime.UtcNow - oldest;
+        return covered >= minCoverage;
+    }
+
+    private static string Hint24h(bool ok) =>
+        ok ? "24 hours" : $"24 hours · need {Min24h.TotalHours:0}h of data";
+
+    private static string Hint30d(bool ok) =>
+        ok ? "30 days" : $"30 days · need {Min30d.TotalDays:0}d of data";
+}

@@ -1,0 +1,65 @@
+@inherits LayoutComponentBase
+@inject OwnerCookieService Cookie
+@inject IHttpContextAccessor HttpContextAccessor
+
+<MudThemeProvider Theme="@LopingoTheme.Default" IsDarkMode="@_isDark" />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Color="Color.Surface" Class="lopingo-appbar">
+        @if (signedIn)
+        {
+            <MudIconButton Icon="@Icons.Material.Rounded.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           title="Toggle navigation"
+                           data-lopingo-nav-toggle="true" />
+        }
+        <a href="/" class="lopingo-brand d-flex align-center">
+            <img src="img/mascot.svg" alt="" class="lopingo-brand-mark" width="28" height="28" />
+            <span class="lopingo-brand-text">lopingo</span><span class="lopingo-brand-dot">.</span>
+        </a>
+        <MudSpacer />
+        <MudTooltip Text="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
+            <MudIconButton Icon="@(_isDark ? Icons.Material.Rounded.LightMode : Icons.Material.Rounded.DarkMode)"
+                           Color="Color.Inherit"
+                           data-lopingo-theme-toggle="true" />
+        </MudTooltip>
+        @if (signedIn)
+        {
+            <LogoutButton />
+        }
+    </MudAppBar>
+
+    @if (signedIn)
+    {
+        <MudDrawer Open="true"
+                   Elevation="0"
+                   Variant="DrawerVariant.Mini"
+                   ClipMode="DrawerClipMode.Always"
+                   Anchor="Anchor.Start"
+                   Class="lopingo-drawer">
+            <MudNavMenu Class="pa-2">
+                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Rounded.Dashboard">Dashboard</MudNavLink>
+                <MudNavLink Href="/settings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Rounded.Settings">Settings</MudNavLink>
+            </MudNavMenu>
+        </MudDrawer>
+    }
+
+    <MudMainContent Class="lopingo-main">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool signedIn;
+    private bool _isDark;
+
+    protected override void OnInitialized()
+    {
+        signedIn = Cookie.GetOwnerId() is not null;
+        var theme = HttpContextAccessor.HttpContext?.Request.Cookies["lopingo.theme"];
+        _isDark = !string.Equals(theme, "light", StringComparison.OrdinalIgnoreCase);
+    }
+}

@@ -1,0 +1,30 @@
+# Build artefacts
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Tests
+TestResults/
+*.coverage
+coverage.*
+*.trx
+
+# Local data
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets
+*.env
+.env
+!.env.example
+
+# Tooling
+.traes/
+.zcode/

@@ -1,0 +1,456 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.lopingo-appbar {
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+.lopingo-brand {
+    text-decoration: none;
+    color: var(--mud-palette-text-primary);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+    gap: 0.45rem;
+}
+
+.lopingo-brand-mark {
+    display: block;
+    flex-shrink: 0;
+    border-radius: 50%;
+}
+
+.lopingo-brand-dot {
+    color: var(--mud-palette-primary);
+}
+
+.lopingo-mascot {
+    display: block;
+    user-select: none;
+}
+
+.lopingo-drawer {
+    border-right: 1px solid var(--mud-palette-divider);
+}
+
+/* Keep main content in sync when JS collapses the mini drawer */
+html.lopingo-nav-collapsed .mud-main-content {
+    margin-left: var(--mud-drawer-width-mini-left, 56px) !important;
+}
+
+.lopingo-main {
+    background: var(--mud-palette-background);
+    min-height: calc(100vh - 64px);
+}
+
+.mud-card {
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04) !important;
+}
+
+.lopingo-auth-shell {
+    min-height: calc(100vh - 64px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.lopingo-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.lopingo-field__label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--mud-palette-text-secondary);
+}
+
+.lopingo-field__input {
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    background: var(--mud-palette-surface);
+    color: var(--mud-palette-text-primary);
+    font: inherit;
+}
+
+.lopingo-field__input:focus {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 1px;
+}
+
+.lopingo-field__helper {
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.lopingo-field__error {
+    font-size: 0.75rem;
+    color: var(--mud-palette-error);
+}
+
+.lopingo-field--checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.lopingo-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1.25rem;
+    border: none;
+    border-radius: var(--mud-default-borderradius);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.lopingo-btn--primary {
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+}
+
+.lopingo-btn--block {
+    width: 100%;
+}
+
+.mud-table-dense .mud-table-cell {
+    padding-inline: 12px;
+}
+
+/* Beat MudBlazor's .mud-primary-text (!important) — primary indigo is muddy on dark tables */
+.mud-table a.mud-link.mud-primary-text {
+    color: var(--mud-palette-text-primary) !important;
+    font-weight: 500;
+}
+
+.mud-table a.mud-link.mud-primary-text:hover {
+    color: var(--mud-palette-info) !important;
+}
+
+.lopingo-uptime {
+    display: flex;
+    flex-direction: row-reverse;
+    gap: 2px;
+    width: 100%;
+    height: 28px;
+}
+
+.lopingo-uptime__bar {
+    flex: 1 1 0;
+    min-width: 2px;
+    border-radius: 2px;
+    background: var(--mud-palette-lines-default);
+    transition: opacity .12s ease;
+}
+
+.lopingo-uptime__bar:hover { opacity: .7; }
+
+.lopingo-uptime__bar--up   { background: var(--mud-palette-success); }
+.lopingo-uptime__bar--down { background: var(--mud-palette-error); }
+
+.lopingo-uptime--empty {
+    height: 28px;
+    background: var(--mud-palette-background-gray);
+    border-radius: 4px;
+}
+
+.lopingo-chart {
+    width: 100%;
+    height: 220px;
+    display: block;
+    pointer-events: none; /* hits/tooltip are HTML above */
+}
+
+.lopingo-chart-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.lopingo-chart-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.lopingo-chart-plot {
+    position: relative;
+    cursor: crosshair;
+}
+
+.lopingo-chart-hits {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+.lopingo-chart-hit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+}
+
+.lopingo-chart-axis {
+    display: flex;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.lopingo-chart-axis--y {
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 2px 0;
+    min-width: 44px;
+}
+
+.lopingo-chart-axis--x {
+    justify-content: space-between;
+    padding: 4px 0 0;
+}
+
+.lopingo-chart__area   { fill: var(--mud-palette-primary); fill-opacity: .12; }
+.lopingo-chart__line   { fill: none; stroke: var(--mud-palette-primary); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; }
+.lopingo-chart__grid   { stroke: var(--mud-palette-divider); stroke-width: 0.5; }
+
+.lopingo-chart-dot {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    margin-left: -3.5px;
+    margin-top: -3.5px;
+    border-radius: 50%;
+    background: var(--mud-palette-primary);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.lopingo-chart-tip {
+    position: absolute;
+    top: 0.35rem;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--mud-palette-text-primary);
+}
+
+.lopingo-chart-tip strong {
+    font-size: 0.85rem;
+}
+
+.lopingo-chart-tip span {
+    color: var(--mud-palette-text-secondary);
+}
+
+.lopingo-confirm {
+    width: min(420px, calc(100vw - 2rem));
+    margin: 20vh auto 0;
+}
+
+.lopingo-range {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 6px;
+    background: var(--mud-palette-background-gray);
+}
+
+.lopingo-range__btn {
+    border: 0;
+    background: transparent;
+    color: var(--mud-palette-text-secondary);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+    padding: 0.4rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.lopingo-range__btn:hover {
+    color: var(--mud-palette-text-primary);
+}
+
+.lopingo-range__btn--active {
+    background: var(--mud-palette-surface);
+    color: var(--mud-palette-text-primary);
+    box-shadow: 0 0 0 1px var(--mud-palette-lines-default);
+}
+
+.lopingo-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+}
+
+.lopingo-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 1rem 1.1rem;
+    border-radius: var(--mud-default-borderradius);
+    background: var(--mud-palette-surface);
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04);
+}
+
+.lopingo-stat-card__label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mud-palette-text-secondary);
+}
+
+.lopingo-stat-card__value {
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--mud-palette-text-primary);
+}
+
+.lopingo-stat-card__value--good { color: var(--mud-palette-success); }
+.lopingo-stat-card__value--warn { color: var(--mud-palette-warning); }
+.lopingo-stat-card__value--bad  { color: var(--mud-palette-error); }
+
+.lopingo-stat-card__hint {
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.lopingo-stat-card--dim {
+    opacity: 0.55;
+}
+
+.lopingo-stat-card--dim .lopingo-stat-card__value {
+    font-weight: 500;
+}
+
+.lopingo-live-chip {
+    gap: 0.35rem;
+}
+
+.lopingo-live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mud-palette-success);
+    animation: lopingo-pulse 2s ease-in-out infinite;
+}
+
+@keyframes lopingo-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* Blazor SignalR reconnect UI (replaces the default browser dialog) */
+#components-reconnect-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11, 16, 32, 0.55);
+    backdrop-filter: blur(4px);
+}
+
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-retrying,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-rejected {
+    display: flex;
+}
+
+#components-reconnect-modal.components-reconnect-hide {
+    display: none;
+}
+
+.lopingo-reconnect {
+    width: min(22rem, calc(100vw - 2rem));
+    padding: 1.5rem 1.4rem;
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    color: var(--mud-palette-text-primary);
+    border: 1px solid var(--mud-palette-lines-default);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    text-align: center;
+}
+
+.lopingo-reconnect__panel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+#components-reconnect-modal.components-reconnect-show .lopingo-reconnect__show,
+#components-reconnect-modal.components-reconnect-retrying .lopingo-reconnect__show {
+    display: flex;
+}
+
+#components-reconnect-modal.components-reconnect-failed .lopingo-reconnect__failed {
+    display: flex;
+}
+
+#components-reconnect-modal.components-reconnect-rejected .lopingo-reconnect__rejected {
+    display: flex;
+}
+
+.lopingo-reconnect__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.lopingo-reconnect__detail {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--mud-palette-text-secondary);
+    line-height: 1.4;
+}
+
+.lopingo-reconnect__spinner {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    border: 2px solid var(--mud-palette-lines-default);
+    border-top-color: var(--mud-palette-primary);
+    animation: lopingo-spin 0.8s linear infinite;
+}
+
+@keyframes lopingo-spin {
+    to { transform: rotate(360deg); }
+}
+

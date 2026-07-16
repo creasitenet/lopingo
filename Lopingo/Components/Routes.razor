@@ -1,0 +1,33 @@
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        @if (IsPublic(routeData.PageType.FullName ?? ""))
+        {
+            @RouteWithDefaultLayout(routeData)
+        }
+        else
+        {
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        }
+    </Found>
+</Router>
+
+@code {
+    private static readonly HashSet<string> PublicRoutes = new(StringComparer.Ordinal)
+    {
+        "Lopingo.Components.Pages.Login",
+        "Lopingo.Components.Pages.Signup",
+    };
+
+    private static bool IsPublic(string typeName) => PublicRoutes.Contains(typeName);
+
+    private static RenderFragment RouteWithDefaultLayout(Microsoft.AspNetCore.Components.RouteData routeData)
+        => @<RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />;
+}

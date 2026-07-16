@@ -1,0 +1,40 @@
+@if (Checks is null || Checks.Count == 0)
+{
+    <div class="lopingo-uptime lopingo-uptime--empty" title="No checks yet"></div>
+}
+else
+{
+    <div class="lopingo-uptime" role="img" aria-label="Uptime heartbeat">
+        @foreach (var c in _slots)
+        {
+            var cls = c switch
+            {
+                { IsUp: true } => "lopingo-uptime__bar lopingo-uptime__bar--up",
+                { IsUp: false } => "lopingo-uptime__bar lopingo-uptime__bar--down",
+                _ => "lopingo-uptime__bar",
+            };
+            var tip = c?.CheckedAt.ToLocalTime().ToString("g") is string t
+                ? $"{t} · {(c!.IsUp ? "up" : "down")}{(c.ResponseMs is int ms ? $" · {ms} ms" : "")}"
+                : "No data";
+            <span class="@cls" title="@tip"></span>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<Check>? Checks { get; set; }
+    [Parameter] public int Slots { get; set; } = 50;
+
+    private List<Check?> _slots = new();
+
+    protected override void OnParametersSet()
+    {
+        _slots = Enumerable.Repeat<Check?>(null, Math.Max(0, Slots)).ToList();
+        if (Checks is null || Checks.Count == 0) return;
+
+        var ordered = Checks.OrderByDescending(c => c.CheckedAt).Take(Slots)
+            .OrderBy(c => c.CheckedAt).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+            _slots[Slots - ordered.Count + i] = ordered[i];
+    }
+}

@@ -1,0 +1,188 @@
+@page "/"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject MonitorRepository Repo
+@inject CheckRepository Checks
+@inject MonitorEventsBus Bus
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard — Lopingo</PageTitle>
+
+<MudGrid Spacing="3" Class="mb-6">
+    <MudItem xs="6" md="3">
+        <MudPaper Elevation="0" Class="pa-4 rounded-lg d-flex flex-column align-center">
+            <MudText Typo="Typo.overline" Class="mud-text-secondary">Total</MudText>
+            <MudText Typo="Typo.h3" Class="mt-1">@_total</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" md="3">
+        <MudPaper Elevation="0" Class="pa-4 rounded-lg d-flex flex-column align-center mud-border-success">
+            <MudText Typo="Typo.overline" Color="Color.Success">Up</MudText>
+            <MudText Typo="Typo.h3" Color="Color.Success" Class="mt-1">@_up</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" md="3">
+        <MudPaper Elevation="0" Class="pa-4 rounded-lg d-flex flex-column align-center mud-border-error">
+            <MudText Typo="Typo.overline" Color="Color.Error">Down</MudText>
+            <MudText Typo="Typo.h3" Color="Color.Error" Class="mt-1">@_down</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" md="3">
+        <MudPaper Elevation="0" Class="pa-4 rounded-lg d-flex flex-column align-center">
+            <MudText Typo="Typo.overline" Class="mud-text-secondary">Unknown</MudText>
+            <MudText Typo="Typo.h3" Class="mud-text-secondary mt-1">@_unknown</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h5">Monitors</MudText>
+    <MudSpacer />
+    <MudButton Href="/monitors/new" Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Rounded.Add">Add monitor</MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudPaper Elevation="0" Class="pa-6 rounded-lg d-flex justify-center">
+        <MudProgressCircular Indeterminate="true" />
+    </MudPaper>
+}
+else if (_monitors.Count == 0)
+{
+    <MudPaper Elevation="0" Class="pa-8 rounded-lg d-flex flex-column align-center">
+        <img src="img/mascot.svg" alt="" class="lopingo-mascot mb-4" width="96" height="96" />
+        <MudText Typo="Typo.h6">No monitor yet</MudText>
+        <MudText Class="mud-text-secondary mb-4">The penguin is ready to ping. Add your first URL.</MudText>
+        <MudButton Href="/monitors/new" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">
+            Add monitor
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Elevation="0" Class="rounded-lg mb-6">
+        <MudTable Items="@_monitors" Hover="true" Dense="false" Striped="false" Elevation="0" Class="mud-table-dense">
+            <HeaderContent>
+                <MudTh>URL</MudTh>
+                <MudTh>Uptime</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Frequency</MudTh>
+                <MudTh>Last checked</MudTh>
+                <MudTh>Last response</MudTh>
+                <MudTh Style="text-align:right"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="URL">
+                    <MudLink Href="@($"/monitors/{context.Id}")" Underline="Underline.Hover">@context.Url</MudLink>
+                </MudTd>
+                <MudTd DataLabel="Uptime" Style="min-width:180px">
+                    <UptimeBar Checks="@(_recentChecks.GetValueOrDefault(context.Id))" Slots="40" />
+                </MudTd>
+                <MudTd DataLabel="Status"><StatusBadge Status="@context.Status" /></MudTd>
+                <MudTd DataLabel="Frequency">@LopingoFormat.Freq(context.FreqSec)</MudTd>
+                <MudTd DataLabel="Last checked">@LopingoFormat.LocalTime(context.LastCheckedAt)</MudTd>
+                <MudTd DataLabel="Last response">@LopingoFormat.Ms(context.LastResponseMs)</MudTd>
+                <MudTd DataLabel="" Style="text-align:right">
+                    <MudIconButton Href="@($"/monitors/{context.Id}/edit")"
+                                   Icon="@Icons.Material.Rounded.Edit"
+                                   Size="Size.Small" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+<MudText Typo="Typo.h5" Class="mt-6 mb-4">Recent activity</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" Class="ma-4" />
+}
+else if (_recentActivity.Count == 0)
+{
+    <MudPaper Elevation="0" Class="pa-4 rounded-lg">
+        <MudText Class="mud-text-secondary">No checks yet.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Elevation="0" Class="rounded-lg">
+        <MudTable Items="@_recentActivity" Hover="true" Dense="true" Elevation="0" Class="mud-table-dense">
+            <HeaderContent>
+                <MudTh>Time</MudTh>
+                <MudTh>Monitor</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Response</MudTh>
+                <MudTh>Error</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@LopingoFormat.LocalTime(context.CheckedAt)</MudTd>
+                <MudTd>
+                    <MudLink Href="@($"/monitors/{context.MonitorId}")" Underline="Underline.Hover">
+                        @(context.Monitor?.Url ?? "—")
+                    </MudLink>
+                </MudTd>
+                <MudTd><StatusBadge Status="@(context.IsUp ? "up" : "down")" /></MudTd>
+                <MudTd>@LopingoFormat.Ms(context.ResponseMs)</MudTd>
+                <MudTd><code>@(context.Error ?? "—")</code></MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private const int ActivityLimit = 20;
+
+    private List<Monitor> _monitors = new();
+    private Dictionary<Guid, List<Check>> _recentChecks = new();
+    private List<Check> _recentActivity = new();
+    private int _total, _up, _down, _unknown;
+    private bool _loading = true;
+
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _cts = new CancellationTokenSource();
+        _ = ListenAsync(_cts.Token);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _monitors = await Repo.ListAsync();
+        _recentChecks = await Checks.GetRecentByMonitorsAsync(_monitors.Select(m => m.Id), 40);
+        _recentActivity = await Checks.GetRecentGlobalAsync(ActivityLimit);
+
+        _total = _monitors.Count;
+        _up = _monitors.Count(m => m.Status == "up");
+        _down = _monitors.Count(m => m.Status == "down");
+        _unknown = _monitors.Count(m => m.Status == "unknown");
+        _loading = false;
+    }
+
+    private async Task ListenAsync(CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var _ in Bus.CheckedReader.ReadAllAsync(ct))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

@@ -1,0 +1,93 @@
+@page "/signup"
+@inject NavigationManager Nav
+@inject OwnerAuthService AuthService
+@inject OwnerCookieService Cookie
+
+<PageTitle>Welcome — Lopingo</PageTitle>
+
+<div class="lopingo-auth-shell">
+    <MudPaper Elevation="0" Class="pa-8 rounded-lg" Style="width:100%; max-width: 460px;">
+        <MudStack Spacing="1" Class="mb-6" AlignItems="AlignItems.Center">
+            <img src="img/mascot.svg" alt="" class="lopingo-mascot mb-2" width="72" height="72" />
+            <MudText Typo="Typo.h4">Welcome to Lopingo</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary" Style="text-align:center">
+                This instance has no owner yet. Pick a username and password to claim it.
+                You'll be signed in immediately.
+            </MudText>
+        </MudStack>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4" Dense="true">@_error</MudAlert>
+        }
+
+        <EditForm Model="Input" FormName="signup" OnValidSubmit="SignupAsync" method="post" Enhance="false">
+            <DataAnnotationsValidator />
+            <MudStack Spacing="3">
+                <div class="lopingo-field">
+                    <label class="lopingo-field__label" for="signup-username">Username</label>
+                    <InputText id="signup-username" @bind-Value="Input.Username" class="lopingo-field__input" autocomplete="username" />
+                    <ValidationMessage For="@(() => Input.Username)" class="lopingo-field__error" />
+                </div>
+                <div class="lopingo-field">
+                    <label class="lopingo-field__label" for="signup-password">Password</label>
+                    <InputText type="password" id="signup-password" @bind-Value="Input.Password" class="lopingo-field__input" autocomplete="new-password" />
+                    <span class="lopingo-field__helper">At least 6 characters.</span>
+                    <ValidationMessage For="@(() => Input.Password)" class="lopingo-field__error" />
+                </div>
+                <div class="lopingo-field">
+                    <label class="lopingo-field__label" for="signup-confirm">Confirm password</label>
+                    <InputText type="password" id="signup-confirm" @bind-Value="Input.Confirm" class="lopingo-field__input" autocomplete="new-password" />
+                    <ValidationMessage For="@(() => Input.Confirm)" class="lopingo-field__error" />
+                </div>
+
+                <button type="submit" class="lopingo-btn lopingo-btn--primary lopingo-btn--block mt-2">
+                    Create owner and sign in
+                </button>
+            </MudStack>
+        </EditForm>
+    </MudPaper>
+</div>
+
+@code {
+    [SupplyParameterFromForm(FormName = "signup")]
+    public SignupFormModel Input { get; set; } = null!;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        if (await AuthService.OwnerExistsAsync())
+            Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    private async Task SignupAsync()
+    {
+        _error = null;
+
+        if (Input.Password != Input.Confirm)
+        {
+            _error = "Passwords do not match.";
+            return;
+        }
+
+        try
+        {
+            var owner = await AuthService.SignupAsync(Input.Username, Input.Password);
+            await Cookie.SignInAsync(HttpContext, owner.Username, owner.Id, isPersistent: true);
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

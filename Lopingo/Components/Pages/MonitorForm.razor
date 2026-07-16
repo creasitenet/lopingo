@@ -1,0 +1,170 @@
+@page "/monitors/new"
+@page "/monitors/{Id:guid}/edit"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject MonitorRepository Monitors
+@inject TelegramRepository Telegrams
+@inject NavigationManager Nav
+
+<PageTitle>@(Id is null ? "New" : "Edit") monitor — Lopingo</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudIconButton Href="@BackHref" Icon="@Icons.Material.Rounded.ArrowBack" />
+    <MudText Typo="Typo.h5">@(Id is null ? "New monitor" : "Edit monitor")</MudText>
+</MudStack>
+
+<MudPaper Elevation="0" Class="pa-6 rounded-lg" Style="max-width: 600px;">
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Dense="true" Class="mb-4">@_error</MudAlert>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_form.Url" For="@(() => _form.Url)" Label="URL"
+                          autocomplete="off" Placeholder="https://example.com"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+            <div>
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Frequency</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2 d-block">
+                    How often the worker probes the URL.
+                </MudText>
+                <MudRadioGroup T="int" @bind-Value="_form.FreqSec">
+                    @foreach (var (sec, label) in MonitorValidation.FrequencyOptions)
+                    {
+                        <MudRadio T="int" Value="@sec" Color="Color.Primary" Dense="true">@label</MudRadio>
+                    }
+                </MudRadioGroup>
+            </div>
+
+            @if (_telegramPicks.Count > 0)
+            {
+                <div>
+                    <MudText Typo="Typo.subtitle2" Class="mb-1">Telegram notifications</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary mb-2 d-block">
+                        Alert these channels when this monitor goes down or recovers.
+                    </MudText>
+                    <MudStack Spacing="0">
+                        @foreach (var pick in _telegramPicks)
+                        {
+                            <MudCheckBox T="bool" @bind-Value="pick.Selected"
+                                         Disabled="@(!pick.Enabled)"
+                                         Label="@(pick.Enabled ? pick.Name : $"{pick.Name} (disabled)")" />
+                        }
+                    </MudStack>
+                </div>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                    No Telegram config yet.
+                    <MudLink Href="/settings/telegram/new">Add one</MudLink> to receive alerts.
+                </MudAlert>
+            }
+
+            <MudStack Row="true" Spacing="2" Class="mt-2">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitting">
+                    Save
+                </MudButton>
+                <MudButton Href="@BackHref" Variant="Variant.Text">Cancel</MudButton>
+            </MudStack>
+        </MudStack>
+    </EditForm>
+</MudPaper>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private readonly MonitorFormModel _form = new();
+    private List<TelegramPick> _telegramPicks = [];
+    private bool _submitting;
+    private string? _error;
+
+    private string BackHref => Id is null ? "/" : $"/monitors/{Id}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await Telegrams.ListAsync();
+        HashSet<Guid> linked = [];
+
+        if (Id is not null)
+        {
+            var monitor = await Monitors.GetWithTelegramsAsync(Id.Value);
+            if (monitor is null)
+            {
+                Nav.NavigateTo("/", forceLoad: true);
+                return;
+            }
+
+            _form.Url = monitor.Url;
+            _form.FreqSec = monitor.FreqSec;
+            linked = monitor.Telegrams.Select(t => t.Id).ToHashSet();
+        }
+
+        _telegramPicks = all.Select(tg => new TelegramPick
+        {
+            Id = tg.Id,
+            Name = tg.Name,
+            Enabled = tg.Enabled,
+            Selected = linked.Contains(tg.Id),
+        }).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+
+        if (!MonitorValidation.IsValidUrl(_form.Url))
+        {
+            _error = "URL must be http(s).";
+            return;
+        }
+        if (!MonitorValidation.AllowedFrequencies.Contains(_form.FreqSec))
+        {
+            _error = "Invalid frequency.";
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            var telegramIds = _telegramPicks.Where(p => p.Selected).Select(p => p.Id).ToList();
+
+            if (Id is null)
+            {
+                await Monitors.CreateAsync(_form.Url, _form.FreqSec, telegramIds);
+            }
+            else
+            {
+                var ok = await Monitors.UpdateAsync(Id.Value, _form.Url, _form.FreqSec, telegramIds);
+                if (!ok)
+                {
+                    _error = "Monitor not found.";
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not save: {ex.Message}";
+            return;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+
+        // Navigate outside try/catch: Blazor throws NavigationException on purpose here.
+        Nav.NavigateTo(Id is null ? "/" : $"/monitors/{Id}", forceLoad: true);
+    }
+
+    private sealed class TelegramPick
+    {
+        public Guid Id { get; init; }
+        public string Name { get; init; } = "";
+        public bool Enabled { get; init; }
+        public bool Selected { get; set; }
+    }
+}
