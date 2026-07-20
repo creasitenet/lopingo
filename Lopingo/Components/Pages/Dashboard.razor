@@ -141,33 +141,47 @@ else
     private bool _loading = true;
 
     private CancellationTokenSource? _cts;
+    private CheckedSubscription? _checkedSub;
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadAsync();
+        await LoadAsync(showSpinner: true);
         _cts = new CancellationTokenSource();
+        _checkedSub = Bus.SubscribeChecked();
         _ = ListenAsync(_cts.Token);
     }
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(bool showSpinner = false)
     {
-        _loading = true;
-        _monitors = await Repo.ListAsync();
-        _recentChecks = await Checks.GetRecentByMonitorsAsync(_monitors.Select(m => m.Id), 40);
-        _recentActivity = await Checks.GetRecentGlobalAsync(ActivityLimit);
+        await _loadLock.WaitAsync();
+        try
+        {
+            if (showSpinner) _loading = true;
+            var monitors = await Repo.ListAsync();
+            var recentChecks = await Checks.GetRecentByMonitorsAsync(monitors.Select(m => m.Id), 40);
+            var recentActivity = await Checks.GetRecentGlobalAsync(ActivityLimit);
 
-        _total = _monitors.Count;
-        _up = _monitors.Count(m => m.Status == "up");
-        _down = _monitors.Count(m => m.Status == "down");
-        _unknown = _monitors.Count(m => m.Status == "unknown");
-        _loading = false;
+            _monitors = monitors;
+            _recentChecks = recentChecks;
+            _recentActivity = recentActivity;
+            _total = monitors.Count;
+            _up = monitors.Count(m => m.Status == "up");
+            _down = monitors.Count(m => m.Status == "down");
+            _unknown = monitors.Count(m => m.Status == "unknown");
+            _loading = false;
+        }
+        finally
+        {
+            _loadLock.Release();
+        }
     }
 
     private async Task ListenAsync(CancellationToken ct)
     {
         try
         {
-            await foreach (var _ in Bus.CheckedReader.ReadAllAsync(ct))
+            await foreach (var _ in _checkedSub!.Reader.ReadAllAsync(ct))
             {
                 await InvokeAsync(async () =>
                 {
@@ -183,6 +197,8 @@ else
     {
         _cts?.Cancel();
         _cts?.Dispose();
+        _checkedSub?.Dispose();
+        _loadLock.Dispose();
         return ValueTask.CompletedTask;
     }
 }

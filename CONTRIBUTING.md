@@ -11,7 +11,7 @@ If you just want to run Lopingo on your server, you don't need this file. The RE
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) and Git. That's it.
 
 ```bash
-git clone https://github.com/<you>/lopingo.git
+git clone https://github.com/creasitenet/lopingo.git
 cd lopingo
 dotnet restore
 cd Lopingo
@@ -95,3 +95,4 @@ Include: Lopingo version or commit, how you're running it (Docker or `dotnet run
 ## License
 
 By contributing, you agree your contributions will be licensed under the [MIT License](LICENSE).
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).

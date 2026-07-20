@@ -21,6 +21,10 @@ public sealed class AppDbContext : DbContext
     {
         base.OnModelCreating(b);
 
+        // Single-owner instance: Id is always 1 (not database-generated).
+        b.Entity<Owner>()
+            .Property(x => x.Id)
+            .ValueGeneratedNever();
         b.Entity<Owner>()
             .HasIndex(x => x.Username)
             .IsUnique();

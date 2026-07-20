@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Docker healthcheck uses `curl` (the `aspnet` image has no `wget`).
+- Event bus allows concurrent writers so parallel probe ticks cannot race the channel.
+- Owner signup is keyed to a single row (`Id = 1`) so concurrent first-boot signups cannot create two owners.
+- Pin `SQLitePCLRaw.bundle_e_sqlite3` 3.0.3 to clear the transitive NU1903 / CVE-2025-6965 warning.
+- Live dashboard/status refresh: read monitors with `AsNoTracking` (Blazor Server was serving stale tracked entities), fan-out check events to every UI subscriber, and serialize page reloads so monitor headers cannot lag behind the checks table.
+
+### Added
+
+- `SECURITY.md`, Contributor Covenant `CODE_OF_CONDUCT.md`, GitHub issue/PR templates.
+- CI job that builds the Docker image and checks `curl` is present.
+
 ## [0.1.0] — 2026-07-10
 
 First public release. Self-hosted, single-user uptime monitor in one `docker compose up`.

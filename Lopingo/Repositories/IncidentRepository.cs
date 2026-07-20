@@ -37,6 +37,7 @@ public sealed class IncidentRepository
     }
 
     public async Task<List<Incident>> ListByMonitorAsync(Guid monitorId, int limit, CancellationToken ct = default)
-        => await _db.Incidents.Where(i => i.MonitorId == monitorId)
+        => await _db.Incidents.AsNoTracking()
+            .Where(i => i.MonitorId == monitorId)
             .OrderByDescending(i => i.StartedAt).Take(limit).ToListAsync(ct);
 }

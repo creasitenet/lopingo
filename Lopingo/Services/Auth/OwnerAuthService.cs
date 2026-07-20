@@ -7,6 +7,7 @@ namespace Lopingo.Services.Auth;
 public sealed class OwnerAuthService
 {
     public const int MinPasswordLength = 6;
+    public const int SingletonOwnerId = 1;
     private const int BcryptWorkFactor = 12;
 
     private readonly AppDbContext _db;
@@ -31,7 +32,20 @@ public sealed class OwnerAuthService
         }
 
         ValidatePassword(password);
-        return await CreateOwnerAsync(username, password, ct);
+        try
+        {
+            return await CreateOwnerAsync(username, password, ct);
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            if (await _db.Owners.AnyAsync(CancellationToken.None))
+            {
+                // Concurrent signup lost the race on primary key Id=1.
+                throw new InvalidOperationException("An owner account already exists. Use the login page.");
+            }
+            throw;
+        }
     }
 
     public async Task<Owner?> VerifyAsync(string username, string password, CancellationToken ct = default)
@@ -65,6 +79,7 @@ public sealed class OwnerAuthService
         var now = DateTime.UtcNow;
         var owner = new Owner
         {
+            Id = SingletonOwnerId,
             Username = username,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, BcryptWorkFactor),
             CreatedAt = now,

@@ -36,29 +36,42 @@ public sealed class LopingoWebAppFactory : WebApplicationFactory<Program>
     }
 }
 
-public sealed class AppFlowTests : IClassFixture<LopingoWebAppFactory>
+public sealed class AppFlowTests
 {
-    private readonly LopingoWebAppFactory _factory;
-
-    public AppFlowTests(LopingoWebAppFactory factory) => _factory = factory;
-
     [Fact]
     public async Task Healthz_returns_ok()
     {
-        var client = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        using var factory = new LopingoWebAppFactory();
+        var client = factory.CreateClient(new() { AllowAutoRedirect = false });
         var response = await client.GetAsync("/healthz");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task Signup_creates_owner_and_allows_monitor_create()
+    public async Task Signup_then_second_signup_is_rejected()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var factory = new LopingoWebAppFactory();
+        using var scope = factory.Services.CreateScope();
+        var auth = scope.ServiceProvider.GetRequiredService<OwnerAuthService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var owner = await auth.SignupAsync("tester", "secret12");
+        Assert.Equal(OwnerAuthService.SingletonOwnerId, owner.Id);
+        Assert.Equal(1, await db.Owners.CountAsync());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => auth.SignupAsync("other", "secret12"));
+        Assert.Contains("already exists", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, await db.Owners.CountAsync());
+    }
+
+    [Fact]
+    public async Task Signup_allows_creating_a_monitor()
+    {
+        using var factory = new LopingoWebAppFactory();
+        using var scope = factory.Services.CreateScope();
         var auth = scope.ServiceProvider.GetRequiredService<OwnerAuthService>();
         await auth.SignupAsync("tester", "secret12");
-
-        var owners = scope.ServiceProvider.GetRequiredService<AppDbContext>().Owners;
-        Assert.Equal(1, await owners.CountAsync());
 
         var repo = scope.ServiceProvider.GetRequiredService<MonitorRepository>();
         var monitor = await repo.CreateAsync("https://example.com", 60, []);

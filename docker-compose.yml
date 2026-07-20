@@ -16,7 +16,8 @@ services:
       - LOPINGO_BATCH=${LOPINGO_BATCH:-100}
       - LOPINGO_CHECK_RETENTION_DAYS=${LOPINGO_CHECK_RETENTION_DAYS:-30}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/healthz || exit 1"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 15s

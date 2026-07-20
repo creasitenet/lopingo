@@ -11,13 +11,14 @@ public sealed class MonitorRepository
     public MonitorRepository(AppDbContext db) => _db = db;
 
     public async Task<List<Monitor>> ListAsync(CancellationToken ct = default)
-        => await _db.Monitors.OrderBy(m => m.CreatedAt).ToListAsync(ct);
+        => await _db.Monitors.AsNoTracking().OrderBy(m => m.CreatedAt).ToListAsync(ct);
 
     public async Task<Monitor?> GetAsync(Guid id, CancellationToken ct = default)
-        => await _db.Monitors.FirstOrDefaultAsync(m => m.Id == id, ct);
+        => await _db.Monitors.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, ct);
 
     public async Task<Monitor?> GetWithTelegramsAsync(Guid id, CancellationToken ct = default)
         => await _db.Monitors
+            .AsNoTracking()
             .Include(m => m.Telegrams)
             .FirstOrDefaultAsync(m => m.Id == id, ct);
 
@@ -56,7 +57,7 @@ public sealed class MonitorRepository
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var monitor = await GetAsync(id, ct);
+        var monitor = await _db.Monitors.FirstOrDefaultAsync(m => m.Id == id, ct);
         if (monitor is null) return false;
         _db.Monitors.Remove(monitor);
         await _db.SaveChangesAsync(ct);

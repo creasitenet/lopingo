@@ -269,16 +269,20 @@ else
     private bool _deleting;
 
     private CancellationTokenSource? _cts;
+    private CheckedSubscription? _checkedSub;
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
 
     protected override async Task OnParametersSetAsync()
     {
         await LoadAsync();
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
         _cts = new CancellationTokenSource();
+        _checkedSub = Bus.SubscribeChecked();
         _ = ListenAsync(_cts.Token);
+        return Task.CompletedTask;
     }
 
     private async Task SetHorizonAsync(int hours)
@@ -291,24 +295,38 @@ else
 
     private async Task LoadAsync()
     {
-        _monitor = await Monitors.GetAsync(Id);
-        if (_monitor is null)
+        await _loadLock.WaitAsync();
+        try
         {
-            Nav.NavigateTo("/", forceLoad: true);
-            return;
+            var monitor = await Monitors.GetAsync(Id);
+            if (monitor is null)
+            {
+                Nav.NavigateTo("/", forceLoad: true);
+                return;
+            }
+
+            await LoadChartAsync();
+
+            var tableChecks = (await Checks.GetRecentAsync(Id, 80))
+                .Where(c => c.IsUp || c.Attempt == CheckProcessor.MaxAttempts)
+                .Take(TableCheckLimit)
+                .ToList();
+
+            var incidents = await Incidents.ListByMonitorAsync(Id, IncidentLimit);
+            var stats24h = await Checks.GetPeriodStatsAsync(Id, TimeSpan.FromHours(24));
+            var stats30d = await Checks.GetPeriodStatsAsync(Id, TimeSpan.FromDays(30));
+
+            _monitor = monitor;
+            _tableChecks = tableChecks;
+            _incidents = incidents;
+            _openIncident = incidents.FirstOrDefault(i => i.EndedAt is null);
+            _stats24h = stats24h;
+            _stats30d = stats30d;
         }
-
-        await LoadChartAsync();
-
-        _tableChecks = (await Checks.GetRecentAsync(Id, 80))
-            .Where(c => c.IsUp || c.Attempt == CheckProcessor.MaxAttempts)
-            .Take(TableCheckLimit)
-            .ToList();
-
-        _incidents = await Incidents.ListByMonitorAsync(Id, IncidentLimit);
-        _openIncident = _incidents.FirstOrDefault(i => i.EndedAt is null);
-        _stats24h = await Checks.GetPeriodStatsAsync(Id, TimeSpan.FromHours(24));
-        _stats30d = await Checks.GetPeriodStatsAsync(Id, TimeSpan.FromDays(30));
+        finally
+        {
+            _loadLock.Release();
+        }
     }
 
     private async Task LoadChartAsync()
@@ -322,7 +340,7 @@ else
     {
         try
         {
-            await foreach (var monitorId in Bus.CheckedReader.ReadAllAsync(ct))
+            await foreach (var monitorId in _checkedSub!.Reader.ReadAllAsync(ct))
             {
                 if (monitorId != Id) continue;
 
@@ -355,6 +373,8 @@ else
     {
         _cts?.Cancel();
         _cts?.Dispose();
+        _checkedSub?.Dispose();
+        _loadLock.Dispose();
         return ValueTask.CompletedTask;
     }
 

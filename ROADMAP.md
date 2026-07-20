@@ -30,6 +30,7 @@ Open an issue if something important is missing or if you want to work on one of
 - More notification channels: email, Slack, Discord, webhooks
 - Export / import monitors as JSON
 - GHCR image published from CI on tag; compose example using the published image
+- Non-root container user (needs clear volume/`chown` docs so `./data` keeps working)
 
 ## Later
 

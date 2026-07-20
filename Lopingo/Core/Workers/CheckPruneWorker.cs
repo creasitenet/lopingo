@@ -66,7 +66,6 @@ public sealed class CheckPruneWorker : BackgroundService
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // shutting down
         }
         catch (Exception ex)
         {

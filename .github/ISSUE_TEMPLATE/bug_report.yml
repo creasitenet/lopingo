@@ -1,0 +1,46 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Security issues → see [SECURITY.md](https://github.com/creasitenet/lopingo/blob/main/SECURITY.md) (do not report them here).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+      placeholder: Steps to reproduce, expected vs actual.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lopingo version or commit
+      placeholder: "0.1.0 / abc1234"
+    validations:
+      required: true
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How are you running it?
+      options:
+        - Docker Compose
+        - dotnet run
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Env / config
+      description: Which `LOPINGO_*` variables did you set? Redact secrets.
+      placeholder: "Defaults / LOPINGO_TICK_SECONDS=1"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Especially around `MonitorCheckWorker started` if the worker is involved.
+      render: shell

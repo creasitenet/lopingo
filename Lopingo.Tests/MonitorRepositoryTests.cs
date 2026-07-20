@@ -67,4 +67,25 @@ public sealed class MonitorRepositoryTests : IDisposable
         Assert.True(ok);
         Assert.Equal(0, await repo.CountAsync());
     }
+
+    [Fact]
+    public async Task ListAsync_sees_status_updated_by_another_context()
+    {
+        await _db.SeedOwnerAsync();
+        await using var uiDb = _db.CreateContext();
+        var uiRepo = new MonitorRepository(uiDb);
+        var monitor = await uiRepo.CreateAsync("https://live.example", 60, []);
+
+        Assert.Equal("unknown", (await uiRepo.ListAsync()).Single().Status);
+
+        await using (var workerDb = _db.CreateContext())
+        {
+            var row = await workerDb.Monitors.FirstAsync(m => m.Id == monitor.Id);
+            row.Status = "up";
+            row.LastCheckedAt = DateTime.UtcNow;
+            await workerDb.SaveChangesAsync();
+        }
+
+        Assert.Equal("up", (await uiRepo.ListAsync()).Single().Status);
+    }
 }

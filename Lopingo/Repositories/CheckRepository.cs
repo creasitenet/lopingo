@@ -22,7 +22,8 @@ public sealed class CheckRepository
     public void Add(Check check) => _db.Checks.Add(check);
 
     public async Task<List<Check>> GetRecentAsync(Guid monitorId, int limit, CancellationToken ct = default)
-        => await _db.Checks.Where(c => c.MonitorId == monitorId)
+        => await _db.Checks.AsNoTracking()
+            .Where(c => c.MonitorId == monitorId)
             .OrderByDescending(c => c.CheckedAt).Take(limit).ToListAsync(ct);
 
     public async Task<Dictionary<Guid, List<Check>>> GetRecentByMonitorsAsync(

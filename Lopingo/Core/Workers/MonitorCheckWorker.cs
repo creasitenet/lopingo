@@ -104,7 +104,7 @@ public sealed class MonitorCheckWorker : BackgroundService
 
             monitor.NextRunAt = DateTime.UtcNow.AddSeconds(monitor.FreqSec);
             await db.SaveChangesAsync(ct);
-            await _bus.CheckedWriter.WriteAsync(monitorId, ct);
+            _bus.PublishChecked(monitorId);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
@@ -120,7 +120,7 @@ public sealed class MonitorCheckWorker : BackgroundService
                     monitor.LastCheckedAt = DateTime.UtcNow;
                     monitor.NextRunAt = DateTime.UtcNow.AddSeconds(Math.Max(monitor.FreqSec, 30));
                     await db.SaveChangesAsync(ct);
-                    await _bus.CheckedWriter.WriteAsync(monitorId, ct);
+                    _bus.PublishChecked(monitorId);
                 }
             }
             catch (OperationCanceledException) { throw; }
